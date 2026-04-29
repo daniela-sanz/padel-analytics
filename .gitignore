@@ -1,0 +1,37 @@
+# Gradle
+.gradle/
+**/.gradle/
+
+# Build outputs
+build/
+**/build/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+
+# Local machine config
+local.properties
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Kotlin/Java compiled files
+*.class
+
+# Captures / temp
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Keystore / signing
+*.jks
+*.keystore
+
+# Generated files
+*.apk
+*.aab

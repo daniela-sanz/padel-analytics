@@ -1,6 +1,7 @@
 package com.tfg.wearableapp.feature.session
 
 import com.tfg.wearableapp.data.session.StoredSessionSummary
+import com.tfg.wearableapp.feature.profile.PlayerProfileUiState
 
 data class SessionUiState(
     val isRecording: Boolean = false,
@@ -10,4 +11,9 @@ data class SessionUiState(
     val samplesReceived: Int = 0,
     val lastPacketId: Long? = null,
     val savedSessions: List<StoredSessionSummary> = emptyList(),
+    val selectedSessionDetail: SessionDetailUiState? = null,
+    val liveDashboardDetail: SessionDetailUiState? = null,
+    val dashboardMode: DashboardMode = DashboardMode.Live,
+    val sessionNameDraft: String = "",
+    val playerProfile: PlayerProfileUiState = PlayerProfileUiState(),
 )

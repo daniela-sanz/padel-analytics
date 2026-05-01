@@ -24,6 +24,19 @@ Incluye:
 - creacion de una simulacion funcional del flujo de datos
 - incidencias de entorno y su resolucion
 
+## 2026-04-29 - Integracion BLE real minima en la pantalla de conexion
+
+Se ha sustituido la pantalla de `Conexion` puramente informativa por un flujo BLE real minimo orientado a la prueba de humo con la XIAO. La app puede ahora:
+
+- escanear dispositivos BLE filtrando por el servicio del smoke test
+- listar dispositivos encontrados
+- conectar con uno de ellos
+- solicitar MTU
+- suscribirse a notificaciones
+- mostrar contador, bateria dummy, flag y payload hexadecimal recibido
+
+Esta fase no pretende aun integrar datos IMU reales ni el protocolo final de chunks, sino validar la capa de enlace BLE de extremo a extremo antes de conectar el pipeline de transporte real.
+
 ## 1. Contexto inicial
 
 El punto de partida fue el documento:
@@ -541,7 +554,295 @@ mientras que la aplicacion principal se orienta ya a:
 - guardado local
 - evolucion hacia BLE real
 
-## 21. Evidencias visuales registradas
+## 21. Introduccion de persistencia estructurada con Room
+
+Una vez validado el guardado local basico de sesiones simuladas, se identifico como siguiente paso logico la sustitucion de la persistencia ad hoc por una solucion mas estructurada.
+
+Se decidio introducir `Room`, que actua como capa de abstraccion sobre `SQLite` en Android.
+
+### Motivo de la decision
+
+La persistencia previa basada en archivo servia para validar el flujo, pero presentaba limitaciones claras:
+
+- poco escalable
+- sin modelo relacional
+- peor base para consultas futuras
+- no preparada para crecer hacia bloques, muestras y eventos
+
+Room aporta una base mas seria para la evolucion de la app y facilita el paso posterior a:
+
+- detalle de sesiones
+- almacenamiento de bloques
+- almacenamiento de muestras
+- consultas y filtros
+
+### Alcance de esta primera integracion
+
+En esta fase no se pretendio persistir aun todas las muestras IMU, sino establecer una base de datos formal para las sesiones.
+
+Se definio:
+
+- una entidad `SessionEntity`
+- un `SessionDao`
+- una base `AppDatabase`
+- un repositorio `RoomSessionRepository`
+
+### Enfoque adoptado
+
+El cambio se realizo de forma incremental:
+
+- se mantiene el flujo simulado actual
+- se sustituye la persistencia basada en archivo por Room
+- se prepara el terreno para una futura ampliacion del modelo de datos
+
+Con ello, la app empieza a parecerse mas a una arquitectura real de producto y menos a un prototipo de validacion aislado.
+
+## 22. Decision de producto y arquitectura del dashboard
+
+Tras revisar el objetivo real del MVP, se decidio priorizar un `dashboard post-sesion` y no intentar construir desde el principio un dashboard completo en tiempo real.
+
+### Decision adoptada
+
+Durante la sesion, la app mostrara solo:
+
+- telemetria basica
+- estado de conexion
+- estado de grabacion
+- contadores
+- metricas ligeras
+
+El dashboard completo se construira:
+
+- al finalizar la sesion
+- a partir de los datos persistidos
+
+### Justificacion
+
+Esta decision se considero la mas adecuada para el MVP y para el TFG porque:
+
+- es mas estable
+- es mas facil de validar
+- es mas defendible en la memoria
+- reduce la complejidad del MVP
+- separa mejor adquisicion, persistencia, procesado y visualizacion
+
+### Lectura tecnica
+
+Se distinguen dos modos:
+
+#### Caso A - Sesion en curso
+
+La app muestra una capa ligera de informacion:
+
+- conectado o no
+- grabando o no
+- bateria
+- bloques recibidos
+- muestras recibidas
+- posibles perdidas
+- golpes candidatos
+- pasos
+- pico de aceleracion
+- pico de giro
+
+Estas metricas se han elegido porque son:
+
+- faciles de calcular de forma incremental
+- computacionalmente ligeras
+- utiles para depurar el wearable y la comunicacion BLE
+- suficientes para tener visibilidad durante pruebas sin intentar construir todavia el dashboard completo en vivo
+
+#### Caso B - Post-sesion
+
+La app:
+
+- lee los datos persistidos
+- procesa la sesion
+- calcula KPIs
+- genera graficas
+- pinta el dashboard completo
+
+### Arquitectura de datos recomendada
+
+La direccion de almacenamiento a medio plazo queda asi:
+
+- `Session` en `Room`
+- `SessionBlock` en `Room`
+- archivo crudo por sesion para IMU completa
+
+Con ello:
+
+- `Room` guarda estructura e indices
+- los bloques quedan trazados por sesion
+- la señal completa puede conservarse para reprocesado y exportacion
+- el dashboard post-sesion puede reconstruirse de forma fiable
+
+La interpretacion correcta de `Room / archivo` no es elegir uno de los dos, sino usar ambos con roles distintos:
+
+- `Room` para sesiones, bloques, metadatos, estados y referencias
+- `archivo crudo` para conservar la señal IMU completa por sesion
+
+### Consecuencia practica
+
+El orden recomendado de desarrollo pasa a ser:
+
+1. persistencia estructurada
+2. bloques por sesion
+3. almacenamiento crudo por sesion
+4. procesado post-sesion
+5. dashboard completo
+6. BLE real
+
+## 23. Introduccion de SessionBlock en la persistencia local
+
+Como siguiente paso de implementacion, se extendio el modelo local para que la app no guardase solo el resumen de una sesion, sino tambien cada bloque recibido durante la captura simulada.
+
+### Objetivo
+
+Dar trazabilidad a la sesion a un nivel intermedio entre:
+
+- el mero resumen de sesion
+- y el almacenamiento futuro de toda la señal cruda
+
+### Cambio realizado
+
+Se introdujo una nueva entidad:
+
+- `SessionBlockEntity`
+
+asociada a `SessionEntity` mediante `sessionId`.
+
+Cada bloque guarda, al menos:
+
+- `packetId`
+- `timestampBlockStartMs`
+- `sampleStartIndex`
+- `sampleCount`
+- `stepCountTotal`
+- `batteryLevelPercent`
+- `statusFlags`
+- `receivedAtEpochMs`
+
+### Valor arquitectonico
+
+Esto permite:
+
+- saber que bloques concretos pertenecen a cada sesion
+- comprobar si la persistencia intermedia funciona correctamente
+- dejar preparada la app para una futura vista de detalle de sesion
+- acercar la arquitectura al modelo previsto de `Session + SessionBlock + archivo crudo`
+
+### Limitacion actual
+
+Todavia no se almacenan las muestras IMU completas ni el bloque crudo serializado.
+
+Este paso se considera una capa intermedia deliberada antes de introducir:
+
+- archivo crudo por sesion
+- procesado post-sesion
+- dashboard completo
+
+### Ajuste posterior en la persistencia de sesiones
+
+Durante la validacion de `SessionBlock` se detecto un comportamiento incorrecto:
+
+- el numero de bloques persistidos aparecia como `0`
+
+La causa fue que la sesion se estaba guardando al final mediante una operacion tipo `REPLACE`, lo que en la practica implicaba borrar y recrear la fila padre.
+
+Dado que los bloques estaban relacionados con la sesion mediante `foreign key` con borrado en cascada, ese reemplazo eliminaba tambien los `SessionBlock` asociados.
+
+La correccion adoptada fue:
+
+- `insert` al crear la sesion
+- `update` al cerrar la sesion
+
+Con ello se evita borrar la fila padre y se preservan correctamente los bloques ya guardados.
+
+## 24. Introduccion del archivo crudo por sesion
+
+Como siguiente paso, se anadio almacenamiento crudo por sesion para conservar la señal IMU completa de cada captura simulada.
+
+### Enfoque elegido
+
+Se opto por un archivo `CSV` por sesion, generado mientras la sesion esta activa.
+
+La motivacion fue:
+
+- facilidad de depuracion
+- facilidad de inspeccion manual
+- utilidad futura para exportacion
+- simplicidad en esta fase del MVP
+
+### Contenido del archivo
+
+Cada fila representa una muestra IMU e incluye, entre otros campos:
+
+- `session_id`
+- `packet_id`
+- `block_timestamp_ms`
+- `sample_global_index`
+- `sample_index_in_block`
+- `step_count_total`
+- `battery_level`
+- `status_flags`
+- `ax, ay, az, gx, gy, gz`
+
+### Valor de este paso
+
+Con esta incorporacion, la app ya dispone de:
+
+- `Session` en `Room`
+- `SessionBlock` en `Room`
+- archivo crudo por sesion
+
+Esto completa la base tecnica necesaria para construir mas adelante:
+
+- detalle de sesion
+- procesado post-sesion
+- exportacion
+- dashboard analitico
+
+## 25. Vista basica de detalle de sesion para validacion
+
+Antes de conectar BLE real, se considero conveniente anadir una vista minima de detalle de sesion para inspeccionar lo que ya se estaba guardando.
+
+### Objetivo
+
+Poder comprobar desde la propia app que:
+
+- la sesion existe
+- los bloques se persisten en `Room`
+- el archivo crudo se genera realmente
+- las primeras muestras del archivo tienen contenido coherente
+
+### Solucion adoptada
+
+Se introdujo una vista de detalle ligera dentro de la pantalla de sesiones que permite:
+
+- seleccionar una sesion guardada
+- consultar cuantos bloques tiene en base de datos
+- visualizar un pequeno resumen de los primeros bloques
+- leer una previsualizacion de las primeras filas del archivo CSV crudo
+
+### Motivo de la decision
+
+Esta vista no es todavia el dashboard final, pero cumple una funcion de validacion muy importante:
+
+- reduce incertidumbre antes de conectar la pulsera real
+- permite depurar el pipeline completo de persistencia
+- da trazabilidad visual al estado interno de una sesion
+
+### Relacion con el roadmap
+
+Este paso encaja como puente entre:
+
+- persistencia estructurada
+- y futuro procesado post-sesion
+
+de forma que la app ya puede inspeccionar lo que guarda antes de entrar en analitica mas compleja.
+
+## 26. Evidencias visuales registradas
 
 Se han almacenado capturas de pantalla del prototipo en:
 
@@ -634,13 +935,33 @@ Interpretacion:
 - esta captura confirma que el flujo funcional de sesion ya permite:
   iniciar una sesion simulada, procesar los datos, detener la captura y persistir un resumen localmente
 
+### 21.6. Detalle de sesion con bloques en Room y previsualizacion del crudo
+
+Archivo:
+
+- `docs/evidencias/2026-04-29_detalle_sesion_room_y_crudo_ok.jpeg`
+
+Descripcion:
+
+- muestra la pantalla de sesion con una vista de detalle abierta
+- se visualiza el numero de bloques guardados en `Room`
+- aparecen los primeros bloques con sus metadatos
+- se muestra una previsualizacion de las primeras muestras leidas desde el archivo crudo CSV
+- se mantiene el resumen general de la sesion en la parte inferior
+
+Interpretacion:
+
+- esta evidencia confirma visualmente que la app ya puede:
+  persistir la sesion, persistir los bloques, generar el archivo crudo y leerlo de vuelta para inspeccion
+
 ### Valor documental de las evidencias
 
-En conjunto, estas capturas permiten justificar visualmente tres hitos del desarrollo:
+En conjunto, estas capturas permiten justificar visualmente cuatro hitos del desarrollo:
 
 1. validacion interna del transporte BLE simulado
 2. estructuracion de la app en pantallas funcionales
 3. persistencia local de sesiones simuladas
+4. inspeccion de detalle de sesion con `Room + SessionBlock + archivo crudo`
 
 Esto aporta material muy util para la futura memoria, especialmente en los apartados de:
 
@@ -648,7 +969,325 @@ Esto aporta material muy util para la futura memoria, especialmente en los apart
 - validacion
 - resultados del prototipo
 
-## 22. Observaciones finales
+## 22. Introduccion de un procesador post-sesion
+
+Tras validar que la app ya podia:
+
+- guardar una `Session`
+- guardar `SessionBlock`
+- generar un archivo crudo CSV por sesion
+- leer de vuelta ese archivo para una previsualizacion
+
+se considero que el siguiente paso logico ya no era BLE real, sino empezar a transformar los datos guardados en metricas utiles.
+
+### Decision adoptada
+
+Se decidio construir una primera capa de procesado post-sesion basada en:
+
+- lectura del CSV crudo de una sesion
+- calculo de metricas sencillas y explicables
+- visualizacion de esas metricas dentro del detalle de sesion
+
+Esta decision sigue la estrategia acordada previamente:
+
+- durante sesion: telemetria ligera
+- despues de sesion: analitica y dashboard serio
+
+### Motivo para no pasar todavia a BLE real
+
+Se considero preferible cerrar antes la cadena completa de la app:
+
+1. recibir datos
+2. guardarlos
+3. releerlos
+4. procesarlos
+5. mostrarlos
+
+De esta forma, cuando se conecte el wearable real, la mayor parte del pipeline de la app ya estara validado y el unico cambio importante sera la fuente de datos.
+
+## 23. Separacion entre parseo de CSV y procesado
+
+Para no mezclar responsabilidades, se introdujo una separacion explicita:
+
+- `data/raw`: lectura y parseo del archivo crudo
+- `data/processing`: calculo de metricas post-sesion
+
+### Archivos nuevos creados
+
+- `data/raw/RawCsvSampleRecord.kt`
+- `data/raw/SessionRawCsvRowParser.kt`
+- `data/processing/PostSessionSummary.kt`
+- `data/processing/PostSessionProcessor.kt`
+
+### Objetivo de esta separacion
+
+- evitar duplicar parseo del CSV
+- reutilizar la misma interpretacion de filas en preview y procesado
+- dejar una base limpia para futuros KPIs
+- hacer el codigo mas facil de explicar en la memoria
+
+## 24. Que hace PostSessionProcessor
+
+La clase `PostSessionProcessor` lee el archivo CSV crudo de una sesion y calcula un primer resumen post-sesion.
+
+### Metricas implementadas en esta iteracion
+
+- numero de muestras procesadas
+- numero de `packet_id` distintos
+- duracion estimada a partir de timestamps crudos
+- pico de magnitud de aceleracion en unidades raw
+- pico de magnitud de giro en unidades raw
+- media de magnitud de aceleracion en unidades raw
+- media de magnitud de giro en unidades raw
+- numero de golpes candidatos
+- bateria al inicio y al final del archivo
+
+### Importante sobre las unidades
+
+Estas metricas usan por ahora:
+
+- valores `raw` del sensor
+- no unidades fisicas finales calibradas
+
+Esto se considero aceptable en esta fase porque el objetivo actual es:
+
+- validar el pipeline de procesado
+- disponer de metricas comparables
+- tener herramientas de depuracion y trazabilidad
+
+## 25. Criterio usado para golpes candidatos
+
+Todavia no se implementa una clasificacion real de golpes.
+
+En su lugar, se introdujo una heuristica barata computacionalmente:
+
+- si la magnitud de aceleracion supera un umbral raw
+- o si la magnitud de giro supera un umbral raw
+- y ha pasado una ventana minima desde el ultimo evento
+- entonces se incrementa el contador de `golpes candidatos`
+
+### Justificacion
+
+Esta metrica no pretende ser un KPI final de producto.
+
+Su utilidad inmediata es:
+
+- depurar sesiones
+- comprobar que la senal tiene eventos destacados
+- preparar una futura metrica mas elaborada
+- aportar telemetria interpretable durante el desarrollo
+
+## 26. Integracion en la vista de detalle
+
+El resultado del procesado se integra dentro de la vista de detalle de sesion.
+
+Eso permite ver en una sola pantalla:
+
+- resumen de sesion guardado en `Room`
+- bloques persistidos
+- nombre del archivo crudo
+- primeras filas del CSV
+- y ahora tambien un resumen procesado post-sesion
+
+Con ello la app ya cubre un flujo muy relevante:
+
+1. generar sesion simulada
+2. guardar estructura
+3. guardar crudo
+4. releer crudo
+5. calcular metricas
+6. mostrar resultado
+
+## 27. Estado tras esta iteracion
+
+En este punto, la app ya dispone de los siguientes niveles de persistencia y explotacion:
+
+- `Session` en `Room`
+- `SessionBlock` en `Room`
+- archivo crudo CSV por sesion
+- vista de detalle
+- procesado post-sesion basico
+
+Esto deja preparado el terreno para las siguientes fases probables:
+
+- ampliar el conjunto de KPIs
+- crear una pantalla de dashboard post-sesion
+- integrar BLE real reutilizando el pipeline ya validado
+
+## 28. Incorporacion de una pantalla de dashboard y preparacion de sesion
+
+Una vez validado el primer `PostSessionProcessor`, se dio un paso hacia una interfaz mas cercana a producto.
+
+### Objetivo de este cambio
+
+Se buscaba dejar de mostrar solo datos tecnicos y empezar a representar:
+
+- un `dashboard post-sesion` con aspecto mas deportivo y tecnologico
+- una capa previa de `preparacion de sesion` con datos de contexto del usuario
+
+### Dashboard post-sesion
+
+Se anadio una nueva pantalla `Dashboard` dentro de la app.
+
+Esta pantalla:
+
+- consume la sesion seleccionada en detalle
+- reutiliza el resultado del `PostSessionProcessor`
+- muestra tarjetas con metricas clave
+- da una lectura mas visual y menos tecnica del resumen de sesion
+
+Las metricas representadas en esta primera version son:
+
+- muestras procesadas
+- bloques persistidos
+- packets distintos
+- impactos candidatos
+- pico de aceleracion raw
+- pico de giro raw
+- bateria inicio-fin
+
+### Extension posterior: vista casi en vivo durante sesion
+
+Despues de esta primera version surgio la necesidad de no obligar siempre a cerrar la sesion para alimentar el dashboard.
+
+Se decidio una solucion intermedia eficiente:
+
+- no leer el CSV cada pocos segundos
+- no reconsultar `Room` continuamente
+- mantener un acumulador en memoria mientras llegan bloques
+- publicar una instantanea ligera del dashboard cada `2 s`
+
+Esta frecuencia se considero un buen compromiso para el MVP:
+
+- suficiente sensacion de actualizacion
+- bajo coste computacional
+- sin castigar almacenamiento ni parseos repetidos
+
+Tambien se anadio una primera interpretacion textual simple para acercar la vista al concepto de dashboard y no dejarla solo en forma de tabla tecnica.
+
+### Preparacion de sesion
+
+Dentro de la pantalla `Sesion` se anadio una seccion nueva para recoger datos de entrada del jugador antes de grabar.
+
+Los campos introducidos en esta fase son:
+
+- nombre o alias
+- sexo
+- mano dominante
+- nivel
+- notas previas de sesion
+
+### Alcance real de esta preparacion
+
+En esta iteracion estos datos:
+
+- viven en el `SessionUiState`
+- pueden editarse desde interfaz
+- se reutilizan en el dashboard
+
+pero todavia:
+
+- no se persisten en `Room`
+- no forman parte del modelo definitivo de sesion
+
+Se considero aceptable porque el objetivo actual es validar el flujo de producto y la experiencia de usuario antes de endurecer la persistencia final.
+
+### Archivos principales introducidos o ampliados
+
+- `feature/dashboard/DashboardScreen.kt`
+- `feature/session/SessionSetupUiState.kt`
+- `feature/session/SessionScreen.kt`
+- `feature/session/SessionUiState.kt`
+- `feature/session/SessionViewModel.kt`
+- `app/WearableAppRoot.kt`
+
+### Valor de esta iteracion
+
+Este cambio es importante porque desplaza la app un paso mas desde:
+
+- herramienta de validacion tecnica
+
+hacia:
+
+- prototipo funcional con narrativa de producto
+
+La app ya no solo puede recibir, guardar y procesar, sino tambien presentar la sesion de una forma mas cercana a lo que acabaria viendo un usuario final.
+
+## 29. Separacion entre perfil del jugador y nombre de sesion
+
+En una iteracion posterior se detecto que la pantalla `Sesion` estaba acumulando demasiada informacion en el cuerpo principal.
+
+Se decidio separar dos conceptos:
+
+- `perfil del jugador`: persistente y poco cambiante
+- `nombre de sesion`: contextual y especifico de cada captura
+
+### Cambios introducidos
+
+#### Perfil del jugador
+
+Los datos del jugador pasaron a un acceso en la parte superior derecha de la app, representado como un boton circular de perfil.
+
+Desde ese dialogo se pueden editar:
+
+- nombre o alias
+- sexo
+- mano dominante
+- nivel
+- notas
+
+Estos datos ya no dependen de una sesion concreta y se guardan en preferencias locales para mantenerse entre aperturas de la app.
+
+#### Nombre de sesion
+
+La pantalla `Sesion` conserva un unico bloque de preparacion corta para nombrar la captura.
+
+Ese nombre:
+
+- se guarda en `Room` junto a la sesion
+- aparece en la lista de sesiones
+- aparece en el detalle de sesion
+- aparece en el dashboard
+
+Si el usuario no introduce nombre, se genera uno automatico con fecha y hora.
+
+### Motivo de la separacion
+
+Esta decision mejora tres aspectos:
+
+- limpieza de interfaz
+- claridad conceptual del modelo de datos
+- cercania a un flujo de producto real
+
+El usuario ya no tiene que reintroducir constantemente informacion del jugador que apenas cambia, mientras que cada sesion sigue pudiendo etiquetarse de forma concreta.
+
+## 30. Unificacion visual con el dashboard
+
+Tras introducir el dashboard con una estetica mas deportiva y tecnica, se detecto que el resto de pantallas seguian teniendo una apariencia demasiado neutra.
+
+Se decidio por tanto unificar visualmente:
+
+- `Conexion`
+- `Sesion`
+- `Demo tecnica`
+- barra superior e inferior de navegacion
+
+### Direccion visual adoptada
+
+- fondo oscuro con gradiente
+- paneles tecnicos oscuros
+- textos claros con acentos cian y verde
+- botones primarios mas energeticos
+
+### Objetivo
+
+No se trataba solo de embellecer la app, sino de:
+
+- dar coherencia al prototipo
+- acercarlo mas a un producto identificable
+- reforzar el caracter `tech + deportivo` del TFG
+
+## 31. Observaciones finales
 
 El desarrollo realizado hasta ahora no se ha limitado a crear una interfaz visual, sino que ha construido una base tecnica coherente para la app del TFG:
 
@@ -658,3 +1297,145 @@ El desarrollo realizado hasta ahora no se ha limitado a crear una interfaz visua
 - y con un contrato de transporte pensado para conectarse despues al firmware
 
 Este documento debe seguir actualizandose en las siguientes iteraciones para mantener trazabilidad del proceso completo.
+
+## 32. Preparacion de chunks BLE reales v1
+
+Tras validar discovery, conexion y notificaciones BLE reales con un payload de humo de 6 bytes, se dio el siguiente paso: introducir un sketch que ya envia chunks con la cabecera real del transporte.
+
+### Decision importante
+
+Se mantiene el formato conceptual del protocolo v1, pero se reduce temporalmente el tamano efectivo del bloque para adaptarlo al `MTU=23` observado en la prueba real.
+
+### Perfil diagnostico elegido
+
+- `protocol_version = 1`
+- `block_type = 1`
+- `4 muestras fake por bloque`
+- `74 bytes por bloque logico`
+- `11 bytes de payload util por chunk`
+- `7 chunks por bloque`
+
+### Motivo
+
+Con un `MTU negociado = 23`, la notificacion util disponible es aproximadamente de `20 bytes`. Como el header de chunk ocupa `9 bytes`, el payload util del chunk queda reducido a `11 bytes`.
+
+En esta fase se prioriza:
+
+- validar la cabecera de chunk
+- validar endianess
+- validar `chunk_index / chunk_count`
+- validar reensamblado en Android
+- validar parser del bloque logico
+
+sin mezclar todavia la IMU real.
+
+### Adaptacion de la app Android
+
+La pantalla `Conexion` se ha ampliado para detectar dos modos de transporte:
+
+- `Smoke payload`
+- `Chunk v1`
+
+En el segundo caso muestra:
+
+- chunks recibidos
+- `packet_id` del ultimo chunk
+- bloques reensamblados
+- `packet_id` y `sample_count` del ultimo bloque completo
+
+Esto convierte la propia pantalla de conexion en una herramienta de depuracion BLE mucho mas util antes de enchufar la sesion productiva.
+
+## 33. Validacion BLE real del flujo chunk v1
+
+La fase BLE real puede considerarse cerrada a nivel de transporte minimo porque ya se ha validado en movil real:
+
+- descubrimiento de la XIAO
+- conexion BLE real
+- recepcion sostenida de notificaciones
+- deteccion de `Chunk v1`
+- reensamblado correcto de bloques logicos en Android
+
+### Evidencias visuales asociadas
+
+Archivos:
+
+- `docs/evidencias/2026-04-30_ble_real_scan_xiao_chunk_v1_ok.jpeg`
+- `docs/evidencias/2026-04-30_ble_real_chunk_v1_reensamblado_ok.jpeg`
+
+Interpretacion:
+
+- la primera captura demuestra que la app descubre el emisor BLE real `XIAO-Padel-ChunkV1`
+- la segunda demuestra que la app recibe chunks reales, cambia a `Modo transporte = Chunk v1` y reensambla bloques completos
+
+### Hito tecnico alcanzado
+
+Con esta validacion quedan confirmados tres puntos clave:
+
+1. `BLE real validado`
+2. `chunking real validado`
+3. `reensamblado Android validado`
+
+## 34. Paso de muestras fake a IMU real sin cambiar el transporte
+
+Una vez validado el contrato `Chunk v1`, se decide no tocar todavia la capa BLE ni el formato del bloque logico. El siguiente cambio se limita a sustituir la fuente de datos:
+
+- antes: muestras IMU fake generadas en firmware
+- ahora: muestras IMU reales leidas desde el `LSM6DS3`
+
+### Decision adoptada
+
+Se crea un sketch nuevo:
+
+- `arduino/BLE_chunk_sender_v1_imu/BLE_chunk_sender_v1_imu.ino`
+
+La idea de este sketch es deliberadamente conservadora:
+
+- mantiene `protocol_version = 1`
+- mantiene el mismo header de chunk
+- mantiene el mismo header de bloque logico
+- mantiene el mismo perfil diagnostico de `4 muestras por bloque`
+- mantiene `7 chunks por bloque`
+
+Lo unico que cambia es el origen de las muestras, que dejan de ser sinteticas y pasan a capturarse desde la IMU real de la XIAO.
+
+### Motivo de este enfoque
+
+Se considera la forma mas limpia de avanzar porque permite aislar variables:
+
+- el transporte ya esta validado
+- el parser Android ya esta validado
+- el reensamblado ya esta validado
+
+Por tanto, si apareciesen incidencias nuevas, quedarian acotadas casi por completo a:
+
+- lectura del sensor
+- temporizacion de muestreo
+- coherencia de los valores raw reales
+
+### Perfil temporal mantenido
+
+Aunque el objetivo final del MVP sigue siendo:
+
+- `52 muestras por bloque`
+- `650 bytes por bloque logico`
+- aproximadamente `4 chunks` por bloque si el MTU lo permite
+
+en esta fase se mantiene el perfil reducido porque el `MTU negociado` observado en la validacion real fue `23`.
+
+Por ello se sigue trabajando temporalmente con:
+
+- `4 muestras por bloque`
+- `74 bytes por bloque logico`
+- `11 bytes utiles por chunk`
+- `7 chunks por bloque`
+
+### Resultado esperado de la siguiente prueba
+
+Si el nuevo sketch funciona correctamente, la app deberia seguir mostrando:
+
+- `Modo transporte = Chunk v1`
+- chunks recibidos creciendo
+- bloques reensamblados creciendo
+- `Ultimo bloque muestras = 4`
+
+pero ahora con valores de acelerometro y giroscopio procedentes ya del IMU fisico real.

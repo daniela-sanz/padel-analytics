@@ -2,6 +2,7 @@ package com.tfg.wearableapp.data.processing
 
 import com.tfg.wearableapp.core.ble.BleTransportConfig
 import com.tfg.wearableapp.core.ble.model.ImuLogicalBlock
+import com.tfg.wearableapp.core.ble.model.TelemetrySnapshot
 import kotlin.math.sqrt
 
 class LiveSessionAccumulator(
@@ -22,11 +23,15 @@ class LiveSessionAccumulator(
     private var candidateImpactCount = 0
     private var lastImpactTimestampMs = Long.MIN_VALUE
 
-    fun addBlock(block: ImuLogicalBlock) {
+    fun addBlock(
+        block: ImuLogicalBlock,
+        telemetry: TelemetrySnapshot? = null,
+    ) {
         packetIds += block.packetId
         firstTimestampMs = firstTimestampMs ?: block.timestampBlockStartMs
-        firstBatteryPercent = firstBatteryPercent ?: block.batteryLevelPercent
-        lastBatteryPercent = block.batteryLevelPercent
+        val batteryLevel = telemetry?.batteryLevelPercent ?: block.batteryLevelPercent
+        firstBatteryPercent = firstBatteryPercent ?: batteryLevel
+        lastBatteryPercent = batteryLevel
 
         block.samples.forEachIndexed { index, sample ->
             val sampleTimestampMs =

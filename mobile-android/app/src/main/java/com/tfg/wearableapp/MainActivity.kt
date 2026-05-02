@@ -8,23 +8,26 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tfg.wearableapp.app.WearableAppRoot
+import com.tfg.wearableapp.data.ble.BleSmokeTestClient
 import com.tfg.wearableapp.feature.connection.ConnectionViewModel
 import com.tfg.wearableapp.feature.session.SessionDemoViewModel
 import com.tfg.wearableapp.feature.session.SessionViewModel
 
 class MainActivity : ComponentActivity() {
+    private val sharedBleClient by lazy { BleSmokeTestClient(applicationContext) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         setContent {
             val connectionViewModel: ConnectionViewModel = viewModel(
-                factory = ConnectionViewModel.provideFactory(applicationContext)
+                factory = ConnectionViewModel.provideFactory(applicationContext, sharedBleClient)
             )
             val connectionUiState by connectionViewModel.uiState.collectAsStateWithLifecycle()
 
             val sessionViewModel: SessionViewModel = viewModel(
-                factory = SessionViewModel.provideFactory(applicationContext)
+                factory = SessionViewModel.provideFactory(applicationContext, sharedBleClient)
             )
             val sessionUiState by sessionViewModel.uiState.collectAsStateWithLifecycle()
 
@@ -40,8 +43,8 @@ class MainActivity : ComponentActivity() {
                 onConnectToBleDevice = connectionViewModel::connectToDevice,
                 onDisconnectBle = connectionViewModel::disconnect,
                 sessionUiState = sessionUiState,
-                onStartSimulatedSession = sessionViewModel::startSimulatedSession,
-                onStopSimulatedSession = sessionViewModel::stopSimulatedSession,
+                onStartRealBleSession = sessionViewModel::startRealBleSession,
+                onStopRealBleSession = sessionViewModel::stopRealBleSession,
                 onRefreshSessions = sessionViewModel::refreshSavedSessions,
                 onSelectSession = sessionViewModel::selectSession,
                 onCloseSessionDetail = sessionViewModel::clearSelectedSession,

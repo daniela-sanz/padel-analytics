@@ -15,6 +15,8 @@ data class ConnectionUiState(
     val notificationsReceived: Int = 0,
     val lastCounter: Long? = null,
     val lastBattery: Int? = null,
+    val lastStepCountTotal: Long? = null,
+    val lastStatusFlags: Int? = null,
     val lastFlagHex: String? = null,
     val lastPayloadHex: String = "-",
     val transportMode: String = "Smoke payload",
@@ -26,6 +28,10 @@ data class ConnectionUiState(
     val lastBlockPacketId: Long? = null,
     val lastBlockSampleCount: Int? = null,
     val lastBlockBattery: Int? = null,
+    val packetGapCount: Int = 0,
+    val sampleGapCount: Int = 0,
+    val effectiveSampleRateHz: Double? = null,
+    val samplesPerSecondObserved: Double? = null,
 )
 
 data class DiscoveredBleDeviceUi(

@@ -5,5 +5,5 @@ data class SessionBlockSummary(
     val timestampBlockStartMs: Long,
     val sampleStartIndex: Long,
     val sampleCount: Int,
-    val batteryLevelPercent: Int,
+    val batteryLevelPercent: Int?,
 )

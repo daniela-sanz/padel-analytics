@@ -1,6 +1,7 @@
 package com.tfg.wearableapp.data.session
 
 import com.tfg.wearableapp.core.ble.model.ImuLogicalBlock
+import com.tfg.wearableapp.core.ble.model.TelemetrySnapshot
 import com.tfg.wearableapp.data.local.session.SessionDao
 import com.tfg.wearableapp.data.local.session.SessionBlockEntity
 import com.tfg.wearableapp.data.local.session.SessionBlockSummary
@@ -25,6 +26,7 @@ class RoomSessionRepository(
         sessionId: String,
         block: ImuLogicalBlock,
         receivedAtEpochMs: Long,
+        telemetry: TelemetrySnapshot? = null,
     ) {
         sessionDao.insertBlock(
             SessionBlockEntity(
@@ -33,9 +35,9 @@ class RoomSessionRepository(
                 timestampBlockStartMs = block.timestampBlockStartMs,
                 sampleStartIndex = block.sampleStartIndex,
                 sampleCount = block.sampleCount,
-                stepCountTotal = block.stepCountTotal,
-                batteryLevelPercent = block.batteryLevelPercent,
-                statusFlags = block.statusFlags,
+                stepCountTotal = telemetry?.stepCountTotal ?: block.stepCountTotal,
+                batteryLevelPercent = telemetry?.batteryLevelPercent ?: block.batteryLevelPercent,
+                statusFlags = telemetry?.statusFlags ?: block.statusFlags,
                 receivedAtEpochMs = receivedAtEpochMs,
             )
         )

@@ -21,10 +21,10 @@ object ImuLogicalBlockSerializer {
                 putInt(block.timestampBlockStartMs.toInt())
                 putInt(block.sampleStartIndex.toInt())
                 putShort(block.sampleCount.toShort())
-                putInt(block.stepCountTotal.toInt())
-                put(block.batteryLevelPercent.toByte())
+                putInt((block.stepCountTotal ?: 0L).toInt())
+                put((block.batteryLevelPercent ?: 0).toByte())
                 put(block.reserved.toByte())
-                putShort(block.statusFlags.toShort())
+                putShort((block.statusFlags ?: 0).toShort())
 
                 block.samples.forEach { sample ->
                     putShort(sample.ax)

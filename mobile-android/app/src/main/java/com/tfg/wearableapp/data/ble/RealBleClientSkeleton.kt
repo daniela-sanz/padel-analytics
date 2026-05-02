@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothGattCharacteristic
 import com.tfg.wearableapp.core.ble.BleMtuMath
 import com.tfg.wearableapp.core.ble.BleTransportConfig
 import com.tfg.wearableapp.core.ble.model.ImuLogicalBlock
+import com.tfg.wearableapp.core.ble.pipeline.BlePipelineEvent
 import com.tfg.wearableapp.core.ble.pipeline.ChunkToBlockPipeline
 
 class RealBleClientSkeleton(
@@ -37,8 +38,9 @@ class RealBleClientSkeleton(
                     rawChunk = value,
                     nowMs = System.currentTimeMillis(),
                 )
-                if (block != null) {
-                    onBlockReady(block)
+                val completedBlock = (block as? BlePipelineEvent.BlockCompleted)?.block
+                if (completedBlock != null) {
+                    onBlockReady(completedBlock)
                 }
             }
         }

@@ -22,6 +22,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -271,6 +272,7 @@ private fun HeroDashboardCard(
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
             )
+            DashboardModeBadge(sessionMode)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -387,9 +389,44 @@ private fun buildInterpretation(summary: PostSessionSummary): String {
         else -> "baja"
     }
 
-    return "Sesion sintetica con intensidad $intensity segun el pico de aceleracion raw. " +
+    return "Sesion con intensidad $intensity segun el pico de aceleracion raw. " +
         "El objetivo de este bloque no es cerrar aun la analitica final, sino traducir la sesion " +
         "guardada en un dashboard legible y util para la siguiente iteracion."
+}
+
+@Composable
+private fun DashboardModeBadge(
+    mode: String,
+) {
+    val normalized = mode.lowercase(Locale.getDefault())
+    val label = when {
+        normalized.contains("ble-real") -> "FUENTE BLE REAL"
+        normalized.contains("simulated") -> "FUENTE SIMULADA"
+        else -> mode.uppercase(Locale.getDefault())
+    }
+    val background = when {
+        normalized.contains("ble-real") -> Color(0xFF35D8A6).copy(alpha = 0.18f)
+        normalized.contains("simulated") -> Color(0xFF00B7FF).copy(alpha = 0.18f)
+        else -> Color(0xFF9ADBE0).copy(alpha = 0.18f)
+    }
+    val content = when {
+        normalized.contains("ble-real") -> Color(0xFF4BFFB8)
+        normalized.contains("simulated") -> Color(0xFF9ADBE0)
+        else -> Color.White
+    }
+
+    Surface(
+        color = background,
+        shape = RoundedCornerShape(50),
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+            color = content,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+        )
+    }
 }
 
 private fun formatTimestamp(timestampMs: Long): String {

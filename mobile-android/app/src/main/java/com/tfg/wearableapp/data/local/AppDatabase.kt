@@ -10,7 +10,7 @@ import com.tfg.wearableapp.data.local.session.SessionEntity
 
 @Database(
     entities = [SessionEntity::class, SessionBlockEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {

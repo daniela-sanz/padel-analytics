@@ -8,9 +8,9 @@ data class ImuLogicalBlock(
     val timestampBlockStartMs: Long,
     val sampleStartIndex: Long,
     val sampleCount: Int,
-    val stepCountTotal: Long,
-    val batteryLevelPercent: Int,
+    val stepCountTotal: Long? = null,
+    val batteryLevelPercent: Int? = null,
     val reserved: Int,
-    val statusFlags: Int,
+    val statusFlags: Int? = null,
     val samples: List<ImuSample>,
 )

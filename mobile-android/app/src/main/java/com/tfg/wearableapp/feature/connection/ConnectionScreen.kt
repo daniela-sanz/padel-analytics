@@ -122,7 +122,7 @@ fun ConnectionScreen(
 
             item {
                 Text(
-                    text = "Primer corte BLE real: descubrir la XIAO, conectar, negociar MTU y confirmar que llegan notificaciones del smoke test.",
+                    text = "Diagnostico BLE real: descubrir la XIAO, conectar, observar MTU real, medir chunks, telemetria y acercarnos a la captura continua.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TechStyle.body,
                 )
@@ -154,14 +154,21 @@ fun ConnectionScreen(
                         KeyValueLine("Modo transporte", uiState.transportMode)
                         KeyValueLine("Ultimo contador", uiState.lastCounter?.toString() ?: "-")
                         KeyValueLine("Ultima bateria", uiState.lastBattery?.let { "$it%" } ?: "-")
+                        KeyValueLine("Ultimos pasos", uiState.lastStepCountTotal?.toString() ?: "-")
+                        KeyValueLine(
+                            "Ultimo status",
+                            uiState.lastStatusFlags?.let { "0x" + it.toString(16).uppercase() } ?: "-",
+                        )
                         KeyValueLine("Ultimo flag", uiState.lastFlagHex ?: "-")
-                        if (uiState.transportMode == "Chunk v1") {
+                        if (uiState.transportMode.startsWith("Chunk")) {
                             KeyValueLine("Chunks recibidos", uiState.chunkNotificationsReceived.toString())
                             KeyValueLine("Ultimo chunk packet_id", uiState.lastChunkPacketId?.toString() ?: "-")
                             KeyValueLine(
                                 "Ultimo chunk idx",
                                 if (uiState.lastChunkIndex != null && uiState.lastChunkCount != null) {
-                                    "${uiState.lastChunkIndex}/${uiState.lastChunkCount?.minus(1)}"
+                                    "${uiState.lastChunkIndex}/${uiState.lastChunkCount - 1}"
+                                } else if (uiState.lastChunkIndex != null) {
+                                    uiState.lastChunkIndex.toString()
                                 } else {
                                     "-"
                                 }
@@ -170,6 +177,12 @@ fun ConnectionScreen(
                             KeyValueLine("Ultimo bloque packet_id", uiState.lastBlockPacketId?.toString() ?: "-")
                             KeyValueLine("Ultimo bloque muestras", uiState.lastBlockSampleCount?.toString() ?: "-")
                             KeyValueLine("Bateria ultimo bloque", uiState.lastBlockBattery?.let { "$it%" } ?: "-")
+                            KeyValueLine("Huecos packet_id", uiState.packetGapCount.toString())
+                            KeyValueLine("Huecos sample_index", uiState.sampleGapCount.toString())
+                            KeyValueLine(
+                                "Frecuencia efectiva",
+                                uiState.effectiveSampleRateHz?.let { String.format("%.1f Hz", it) } ?: "-",
+                            )
                         }
                         Text(
                             text = "Payload: ${uiState.lastPayloadHex}",
@@ -236,7 +249,7 @@ fun ConnectionScreen(
                 item {
                     TechPanelCard(modifier = Modifier.fillMaxWidth(), alt = true) {
                         Text(
-                            text = "Todavia no hay dispositivos del smoke test visibles. Enciende la XIAO y lanza el scan.",
+                            text = "Todavia no hay dispositivos BLE visibles para la prueba. Enciende la XIAO y lanza el scan.",
                             modifier = Modifier.padding(16.dp),
                             color = TechStyle.body,
                         )

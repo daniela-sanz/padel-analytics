@@ -28,8 +28,8 @@ data class SessionBlockEntity(
     val timestampBlockStartMs: Long,
     val sampleStartIndex: Long,
     val sampleCount: Int,
-    val stepCountTotal: Long,
-    val batteryLevelPercent: Int,
-    val statusFlags: Int,
+    val stepCountTotal: Long?,
+    val batteryLevelPercent: Int?,
+    val statusFlags: Int?,
     val receivedAtEpochMs: Long,
 )

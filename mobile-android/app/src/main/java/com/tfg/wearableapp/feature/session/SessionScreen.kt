@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -35,8 +37,8 @@ import java.util.Locale
 fun SessionScreen(
     paddingValues: PaddingValues,
     uiState: SessionUiState,
-    onStartSimulatedSession: () -> Unit,
-    onStopSimulatedSession: () -> Unit,
+    onStartRealBleSession: () -> Unit,
+    onStopRealBleSession: () -> Unit,
     onRefreshSessions: () -> Unit,
     onSelectSession: (StoredSessionSummary) -> Unit,
     onCloseSessionDetail: () -> Unit,
@@ -67,7 +69,7 @@ fun SessionScreen(
 
             item {
                 Text(
-                    text = "Esta pantalla representa el flujo funcional del MVP. El perfil del jugador vive arriba a la derecha y persiste hasta que lo cambies.",
+                    text = "Esta pantalla representa ya el flujo principal real. Primero conecta la XIAO en Conexion y despues inicia o detiene la sesion desde aqui. La simulacion queda relegada a Demo.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TechStyle.body,
                 )
@@ -102,10 +104,25 @@ fun SessionScreen(
                             color = TechStyle.title,
                         )
                         SessionMetricRow("Grabando", if (uiState.isRecording) "Si" else "No")
+                        SessionMetricRow("Modo", uiState.recordingMode ?: "-")
+                        SessionMetricRow("BLE real conectado", if (uiState.bleDeviceConnected) "Si" else "No")
+                        SessionMetricRow("Dispositivo BLE", uiState.bleDeviceName ?: "-")
                         SessionMetricRow("Notificaciones", uiState.notificationsSeen.toString())
                         SessionMetricRow("Bloques completos", uiState.blocksCompleted.toString())
                         SessionMetricRow("Muestras recibidas", uiState.samplesReceived.toString())
                         SessionMetricRow("Ultimo packet_id", uiState.lastPacketId?.toString() ?: "-")
+                        SessionMetricRow("Ultima bateria", uiState.lastBatteryLevel?.let { "$it%" } ?: "-")
+                        SessionMetricRow("Ultimos pasos", uiState.lastStepCountTotal?.toString() ?: "-")
+                        SessionMetricRow(
+                            "Ultimo status",
+                            uiState.lastStatusFlags?.let { "0x" + it.toString(16).uppercase() } ?: "-",
+                        )
+                        SessionMetricRow("Huecos packet_id", uiState.packetGapCount.toString())
+                        SessionMetricRow("Huecos sample_index", uiState.sampleGapCount.toString())
+                        SessionMetricRow(
+                            "Frecuencia efectiva",
+                            uiState.effectiveSampleRateHz?.let { String.format("%.1f Hz", it) } ?: "-",
+                        )
                         Text(uiState.statusText, color = TechStyle.body)
                     }
                 }
@@ -114,20 +131,20 @@ fun SessionScreen(
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(
-                        onClick = onStartSimulatedSession,
-                        enabled = !uiState.isRecording,
+                        onClick = onStartRealBleSession,
+                        enabled = !uiState.isRecording && uiState.bleDeviceConnected,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = TechStyle.accentSecondary,
+                            containerColor = TechStyle.accent,
                             contentColor = TechStyle.bgTop,
                         ),
                     ) {
                         Text("Iniciar sesion", fontWeight = FontWeight.Bold)
                     }
                     OutlinedButton(
-                        onClick = onStopSimulatedSession,
+                        onClick = onStopRealBleSession,
                         enabled = uiState.isRecording,
                     ) {
-                        Text("Detener y guardar")
+                        Text("Detener sesion")
                     }
                 }
             }
@@ -203,12 +220,18 @@ private fun SavedSessionCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                text = session.sessionName,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = TechStyle.title,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = session.sessionName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TechStyle.title,
+                )
+                SessionModeBadge(session.mode)
+            }
             Text(
                 text = "id ${session.id.take(8)}",
                 style = MaterialTheme.typography.bodySmall,
@@ -242,12 +265,18 @@ private fun SessionDetailCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(
-                text = "Detalle de ${session.sessionName}",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = TechStyle.title,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = "Detalle de ${session.sessionName}",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = TechStyle.title,
+                )
+                SessionModeBadge(session.mode)
+            }
             Text(
                 text = "id ${session.id.take(8)}",
                 style = MaterialTheme.typography.bodySmall,
@@ -386,7 +415,7 @@ private fun BlockPreviewRow(
             color = TechStyle.title,
         )
         Text(
-            text = "sampleStartIndex=${block.sampleStartIndex} | battery=${block.batteryLevelPercent}%",
+            text = "sampleStartIndex=${block.sampleStartIndex} | battery=${block.batteryLevelPercent?.let { "$it%" } ?: "-"}",
             color = TechStyle.body,
         )
     }
@@ -414,6 +443,41 @@ private fun SessionMetricRow(
     ) {
         Text(text = label, color = TechStyle.body)
         Text(text = value, fontWeight = FontWeight.Medium, color = TechStyle.title)
+    }
+}
+
+@Composable
+private fun SessionModeBadge(
+    mode: String,
+) {
+    val normalized = mode.lowercase(Locale.getDefault())
+    val label = when {
+        normalized.contains("ble-real") -> "BLE REAL"
+        normalized.contains("simulated") -> "SIMULADA"
+        else -> mode.uppercase(Locale.getDefault())
+    }
+    val background = when {
+        normalized.contains("ble-real") -> TechStyle.accentSecondary.copy(alpha = 0.18f)
+        normalized.contains("simulated") -> TechStyle.accent.copy(alpha = 0.18f)
+        else -> TechStyle.label.copy(alpha = 0.18f)
+    }
+    val content = when {
+        normalized.contains("ble-real") -> TechStyle.accentSecondary
+        normalized.contains("simulated") -> TechStyle.accent
+        else -> TechStyle.label
+    }
+
+    Surface(
+        color = background,
+        shape = RoundedCornerShape(50),
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            color = content,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 

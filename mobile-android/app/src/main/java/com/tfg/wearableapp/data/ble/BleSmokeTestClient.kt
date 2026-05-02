@@ -36,8 +36,12 @@ class BleSmokeTestClient(
         val serviceUuid: UUID = UUID.fromString("19B10010-E8F2-537E-4F6C-D104768A1214")
         val notifyCharacteristicUuid: UUID =
             UUID.fromString("19B10011-E8F2-537E-4F6C-D104768A1214")
+        val controlCharacteristicUuid: UUID =
+            UUID.fromString("19B10012-E8F2-537E-4F6C-D104768A1214")
         private val cccdUuid: UUID =
             UUID.fromString("00002902-0000-1000-8000-00805F9B34FB")
+        private val startCommand = byteArrayOf(0x01)
+        private val stopCommand = byteArrayOf(0x00)
     }
 
     private val appContext = context.applicationContext
@@ -45,22 +49,44 @@ class BleSmokeTestClient(
     private val bluetoothAdapter: BluetoothAdapter?
         get() = bluetoothManager?.adapter
 
-    private var listener: Listener? = null
+    private val listeners = linkedSetOf<Listener>()
     private var currentGatt: BluetoothGatt? = null
     private var scanCallback: ScanCallback? = null
     private var servicesDiscoveryStarted = false
+    private var currentConnectionName: String? = null
+    private var currentConnectionAddress: String? = null
 
-    fun setListener(listener: Listener) {
-        this.listener = listener
+    fun addListener(listener: Listener) {
+        listeners.add(listener)
+    }
+
+    fun removeListener(listener: Listener) {
+        listeners.remove(listener)
     }
 
     fun isBluetoothAvailable(): Boolean = bluetoothAdapter != null
+
+    fun isConnected(): Boolean = currentGatt != null
+
+    fun connectedDeviceName(): String? = currentConnectionName
+
+    fun connectedDeviceAddress(): String? = currentConnectionAddress
+
+    @SuppressLint("MissingPermission")
+    fun sendStartSessionCommand() {
+        writeControlCommand(startCommand, "START_SESSION")
+    }
+
+    @SuppressLint("MissingPermission")
+    fun sendStopSessionCommand() {
+        writeControlCommand(stopCommand, "STOP_SESSION")
+    }
 
     @SuppressLint("MissingPermission")
     fun startScan() {
         val scanner = bluetoothAdapter?.bluetoothLeScanner
         if (scanner == null) {
-            listener?.onStatusChanged("Bluetooth LE no disponible en este dispositivo.")
+            notifyStatus("Bluetooth LE no disponible en este dispositivo.")
             return
         }
 
@@ -68,23 +94,23 @@ class BleSmokeTestClient(
 
         scanCallback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
-                val advertisesExpectedService = result.scanRecord
-                    ?.serviceUuids
-                    ?.contains(ParcelUuid(serviceUuid)) == true
-                listener?.onScanDevice(
-                    device = result.device,
-                    rssi = result.rssi,
-                    advertisedName = result.scanRecord?.deviceName,
-                    advertisesExpectedService = advertisesExpectedService,
-                )
+                emitScanResult(result)
             }
 
             override fun onBatchScanResults(results: MutableList<ScanResult>) {
-                results.forEach { result ->
-                    val advertisesExpectedService = result.scanRecord
-                        ?.serviceUuids
-                        ?.contains(ParcelUuid(serviceUuid)) == true
-                    listener?.onScanDevice(
+                results.forEach(::emitScanResult)
+            }
+
+            override fun onScanFailed(errorCode: Int) {
+                notifyStatus("Error de scan BLE: $errorCode")
+            }
+
+            private fun emitScanResult(result: ScanResult) {
+                val advertisesExpectedService = result.scanRecord
+                    ?.serviceUuids
+                    ?.contains(ParcelUuid(serviceUuid)) == true
+                listeners.forEach {
+                    it.onScanDevice(
                         device = result.device,
                         rssi = result.rssi,
                         advertisedName = result.scanRecord?.deviceName,
@@ -92,21 +118,15 @@ class BleSmokeTestClient(
                     )
                 }
             }
-
-            override fun onScanFailed(errorCode: Int) {
-                listener?.onStatusChanged("Error de scan BLE: $errorCode")
-            }
         }
 
         try {
             scanner.startScan(scanCallback)
-            listener?.onStatusChanged("Escaneando BLE con API simple...")
-        } catch (securityException: SecurityException) {
-            listener?.onStatusChanged(
-                "SecurityException al iniciar scan BLE. Revisa permisos de Dispositivos cercanos."
-            )
+            notifyStatus("Escaneando BLE con API simple...")
+        } catch (_: SecurityException) {
+            notifyStatus("SecurityException al iniciar scan BLE. Revisa permisos de Dispositivos cercanos.")
         } catch (illegalStateException: IllegalStateException) {
-            listener?.onStatusChanged(
+            notifyStatus(
                 "IllegalStateException al iniciar scan BLE: ${illegalStateException.message ?: "sin detalle"}"
             )
         }
@@ -119,7 +139,7 @@ class BleSmokeTestClient(
         try {
             scanner.stopScan(callback)
         } catch (_: SecurityException) {
-            listener?.onStatusChanged("No se pudo detener el scan BLE por permisos.")
+            notifyStatus("No se pudo detener el scan BLE por permisos.")
         }
         scanCallback = null
     }
@@ -129,7 +149,7 @@ class BleSmokeTestClient(
         disconnect()
         stopScan()
         servicesDiscoveryStarted = false
-        listener?.onStatusChanged("Conectando con ${device.name ?: device.address}...")
+        notifyStatus("Conectando con ${device.name ?: device.address}...")
         currentGatt = device.connectGatt(
             appContext,
             false,
@@ -143,6 +163,8 @@ class BleSmokeTestClient(
         currentGatt?.disconnect()
         currentGatt?.close()
         currentGatt = null
+        currentConnectionName = null
+        currentConnectionAddress = null
         servicesDiscoveryStarted = false
     }
 
@@ -153,28 +175,65 @@ class BleSmokeTestClient(
     ) {
         val characteristic = service.getCharacteristic(notifyCharacteristicUuid)
         if (characteristic == null) {
-            listener?.onStatusChanged("Caracteristica notify no encontrada.")
+            notifyStatus("Caracteristica notify no encontrada.")
             return
         }
 
         val enabled = gatt.setCharacteristicNotification(characteristic, true)
         if (!enabled) {
-            listener?.onStatusChanged("No se pudo activar setCharacteristicNotification.")
+            notifyStatus("No se pudo activar setCharacteristicNotification.")
             return
         }
 
         val descriptor = characteristic.getDescriptor(cccdUuid)
         if (descriptor == null) {
-            listener?.onStatusChanged("CCCD no encontrada para la caracteristica notify.")
+            notifyStatus("CCCD no encontrada para la caracteristica notify.")
             return
         }
 
         descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
         val writeOk = gatt.writeDescriptor(descriptor)
         if (!writeOk) {
-            listener?.onStatusChanged("No se pudo escribir la CCCD.")
+            notifyStatus("No se pudo escribir la CCCD.")
         } else {
-            listener?.onStatusChanged("Suscribiendo notificaciones...")
+            notifyStatus("Suscribiendo notificaciones...")
+        }
+    }
+
+    private fun notifyStatus(status: String) {
+        listeners.forEach { it.onStatusChanged(status) }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun writeControlCommand(
+        payload: ByteArray,
+        label: String,
+    ) {
+        val gatt = currentGatt
+        if (gatt == null) {
+            notifyStatus("No hay GATT activa para enviar $label.")
+            return
+        }
+
+        val service = gatt.getService(serviceUuid)
+        if (service == null) {
+            notifyStatus("Servicio BLE no disponible para enviar $label.")
+            return
+        }
+
+        val characteristic = service.getCharacteristic(controlCharacteristicUuid)
+        if (characteristic == null) {
+            notifyStatus("Caracteristica de control no encontrada para $label.")
+            return
+        }
+
+        characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        characteristic.value = payload
+        val ok = gatt.writeCharacteristic(characteristic)
+        if (ok) {
+            notifyStatus("Comando enviado: $label")
+        } else {
+            notifyStatus("No se pudo enviar el comando $label")
         }
     }
 
@@ -184,28 +243,36 @@ class BleSmokeTestClient(
             when (newState) {
                 BluetoothGatt.STATE_CONNECTED -> {
                     currentGatt = gatt
-                    listener?.onConnectionChanged(
-                        isConnected = true,
-                        deviceName = gatt.device.name,
-                        address = gatt.device.address,
-                    )
-                    listener?.onStatusChanged("Conectado. Solicitando MTU...")
+                    currentConnectionName = gatt.device.name
+                    currentConnectionAddress = gatt.device.address
+                    listeners.forEach {
+                        it.onConnectionChanged(
+                            isConnected = true,
+                            deviceName = gatt.device.name,
+                            address = gatt.device.address,
+                        )
+                    }
+                    notifyStatus("Conectado. Solicitando MTU...")
 
                     val mtuRequested = gatt.requestMtu(185)
                     if (!mtuRequested) {
-                        listener?.onStatusChanged("MTU no solicitado; descubriendo servicios...")
+                        notifyStatus("MTU no solicitado; descubriendo servicios...")
                         gatt.discoverServices()
                         servicesDiscoveryStarted = true
                     }
                 }
 
                 BluetoothGatt.STATE_DISCONNECTED -> {
-                    listener?.onConnectionChanged(
-                        isConnected = false,
-                        deviceName = gatt.device.name,
-                        address = gatt.device.address,
-                    )
-                    listener?.onStatusChanged("Desconectado. Status GATT=$status")
+                    currentConnectionName = null
+                    currentConnectionAddress = null
+                    listeners.forEach {
+                        it.onConnectionChanged(
+                            isConnected = false,
+                            deviceName = gatt.device.name,
+                            address = gatt.device.address,
+                        )
+                    }
+                    notifyStatus("Desconectado. Status GATT=$status")
                     gatt.close()
                     if (currentGatt === gatt) {
                         currentGatt = null
@@ -217,8 +284,8 @@ class BleSmokeTestClient(
 
         @SuppressLint("MissingPermission")
         override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
-            listener?.onMtuNegotiated(mtu)
-            listener?.onStatusChanged("MTU negociado: $mtu. Descubriendo servicios...")
+            listeners.forEach { it.onMtuNegotiated(mtu) }
+            notifyStatus("MTU negociado: $mtu. Descubriendo servicios...")
             if (!servicesDiscoveryStarted) {
                 servicesDiscoveryStarted = true
                 gatt.discoverServices()
@@ -228,7 +295,7 @@ class BleSmokeTestClient(
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             val service = gatt.getService(serviceUuid)
             if (service == null) {
-                listener?.onStatusChanged("Servicio BLE de smoke test no encontrado.")
+                notifyStatus("Servicio BLE de smoke test no encontrado.")
                 return
             }
             subscribeToNotifyCharacteristic(gatt, service)
@@ -240,7 +307,7 @@ class BleSmokeTestClient(
             status: Int,
         ) {
             if (descriptor.characteristic.uuid == notifyCharacteristicUuid) {
-                listener?.onStatusChanged("Notificaciones activadas. Esperando bytes...")
+                notifyStatus("Notificaciones activadas. Esperando bytes...")
             }
         }
 
@@ -250,7 +317,7 @@ class BleSmokeTestClient(
             value: ByteArray,
         ) {
             if (characteristic.uuid == notifyCharacteristicUuid) {
-                listener?.onNotification(value)
+                listeners.forEach { it.onNotification(value) }
             }
         }
 
@@ -260,7 +327,8 @@ class BleSmokeTestClient(
             characteristic: BluetoothGattCharacteristic,
         ) {
             if (characteristic.uuid == notifyCharacteristicUuid) {
-                listener?.onNotification(characteristic.value ?: byteArrayOf())
+                val payload = characteristic.value ?: byteArrayOf()
+                listeners.forEach { it.onNotification(payload) }
             }
         }
     }

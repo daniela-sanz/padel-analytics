@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.tfg.wearableapp.core.ble.BleMtuMath
 import com.tfg.wearableapp.core.ble.BleTransportConfig
 import com.tfg.wearableapp.core.ble.model.ChunkTransportStats
+import com.tfg.wearableapp.core.ble.pipeline.BlePipelineEvent
 import com.tfg.wearableapp.core.ble.pipeline.ChunkToBlockPipeline
 import com.tfg.wearableapp.data.ble.FakeBleNotificationSource
 import kotlinx.coroutines.Job
@@ -47,11 +48,12 @@ class SessionDemoViewModel(
                 .streamRawNotifications(BleTransportConfig.targetChunkPayloadSizeBytes)
                 .collectLatest { rawChunk ->
                     stats = stats.copy(notificationsSeen = stats.notificationsSeen + 1)
-                    val block = pipeline.processNotification(
+                    val event = pipeline.processNotification(
                         rawChunk = rawChunk,
                         nowMs = System.currentTimeMillis(),
                     )
 
+                    val block = (event as? BlePipelineEvent.BlockCompleted)?.block
                     if (block != null) {
                         stats = stats.copy(
                             blocksCompleted = stats.blocksCompleted + 1,

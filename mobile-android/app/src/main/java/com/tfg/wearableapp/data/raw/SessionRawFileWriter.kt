@@ -3,6 +3,7 @@ package com.tfg.wearableapp.data.raw
 import android.content.Context
 import com.tfg.wearableapp.core.ble.BleTransportConfig
 import com.tfg.wearableapp.core.ble.model.ImuLogicalBlock
+import com.tfg.wearableapp.core.ble.model.TelemetrySnapshot
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -29,6 +30,7 @@ class SessionRawFileWriter(
     suspend fun appendBlock(
         sessionId: String,
         block: ImuLogicalBlock,
+        telemetry: TelemetrySnapshot? = null,
     ) = withContext(Dispatchers.IO) {
         val file = requireNotNull(outputFile) {
             "No se puede escribir el crudo porque la sesion no ha inicializado su archivo"
@@ -40,6 +42,9 @@ class SessionRawFileWriter(
         block.samples.forEachIndexed { index, sample ->
             val sampleGlobalIndex = block.sampleStartIndex + index
             val sampleTimestampMs = block.timestampBlockStartMs + (index * samplePeriodMs).toLong()
+            val stepCountTotal = telemetry?.stepCountTotal ?: block.stepCountTotal
+            val batteryLevel = telemetry?.batteryLevelPercent ?: block.batteryLevelPercent
+            val statusFlags = telemetry?.statusFlags ?: block.statusFlags
 
             builder.append(sessionId)
                 .append(',')
@@ -51,11 +56,11 @@ class SessionRawFileWriter(
                 .append(',')
                 .append(index)
                 .append(',')
-                .append(block.stepCountTotal)
+                .append(stepCountTotal?.toString().orEmpty())
                 .append(',')
-                .append(block.batteryLevelPercent)
+                .append(batteryLevel?.toString().orEmpty())
                 .append(',')
-                .append(block.statusFlags)
+                .append(statusFlags?.toString().orEmpty())
                 .append(',')
                 .append(sample.ax)
                 .append(',')

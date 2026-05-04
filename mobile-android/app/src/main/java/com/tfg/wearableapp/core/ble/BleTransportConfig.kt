@@ -9,7 +9,10 @@ object BleTransportConfig {
 
     const val logicalBlockHeaderSizeBytes: Int = 26
     const val chunkHeaderSizeBytes: Int = 9
+    const val preferredAttMtu: Int = 247
+    const val minimumAttMtu: Int = 23
     const val mtu23AttPayloadBytes: Int = 20
+    const val preferredAttPayloadBytes: Int = 244
     const val mtu23FirstChunkHeaderBytes: Int = 12
     const val mtu23ContinuationHeaderBytes: Int = 4
     const val telemetryMessageSizeBytes: Int = 8
@@ -23,7 +26,7 @@ object BleTransportConfig {
     const val telemetryFlagStatus: Int = 1 shl 2
 
     const val targetSampleRateHz: Int = 104
-    const val targetSamplesPerBlock: Int = 26
+    const val targetSamplesPerBlock: Int = 52
     const val targetChunkPayloadSizeBytes: Int = 180
 
     const val blockReassemblyTimeoutMs: Long = 3_000L

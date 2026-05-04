@@ -1439,3 +1439,74 @@ Si el nuevo sketch funciona correctamente, la app deberia seguir mostrando:
 - `Ultimo bloque muestras = 4`
 
 pero ahora con valores de acelerometro y giroscopio procedentes ya del IMU fisico real.
+
+## 35. Validacion de 104 Hz reales con MTU alto y decision final de 52 muestras
+
+Tras la validacion inicial con `26 muestras por bloque`, se introdujo una optimizacion importante del enlace BLE:
+
+- mantener compatibilidad base con `ATT_MTU = 23`
+- pero intentar negociacion preferente de `MTU 247`
+- junto con mejoras del enlace como `Data Length Update`, `PHY 2M` e intervalo corto
+
+### Resultado con 26 muestras
+
+Con esa estrategia, se obtuvo una primera sesion real valida a:
+
+- `104.01 Hz` efectivos
+- sin huecos de `packet_id`
+- sin huecos de `sample_global_index`
+- con timestamps monotonicamente crecientes
+
+La evidencia asociada fue:
+
+- `docs/evidencias/pruebas_csv/csv_E.csv`
+
+### Decision de explorar un bloque mas eficiente
+
+Una vez demostrado que el enlace ya podia sostener `104 Hz`, se planteo la siguiente pregunta de ingenieria:
+
+- no solo llegar a `104 Hz`
+- sino hacerlo con menos notificaciones por cantidad de dato util
+
+Por ello se probo una segunda configuracion:
+
+- `52 muestras por bloque`
+
+### Resultado con 52 muestras
+
+La sesion de prueba con `52 muestras` mantuvo:
+
+- `104.02 Hz` efectivos
+- `0` huecos en `packet_id`
+- `0` huecos en `sample_global_index`
+- timestamps monotonicamente crecientes
+- `52` muestras por bloque en todos los packets
+
+Evidencia asociada:
+
+- `docs/evidencias/pruebas_csv/csv_F.csv`
+
+Ademas, el comportamiento esperado del transporte tambien se confirmo:
+
+- con `MTU 247`, cada bloque de `52 muestras` se resolvio en aproximadamente `3 chunks`
+- esto redujo el numero de notificaciones por cantidad de muestra util respecto a la configuracion de `26 muestras`
+
+### Decision adoptada
+
+A partir de estos resultados se fija como decision vigente:
+
+- `52 muestras por bloque`
+
+La razon no es solo que funcione, sino que ofrece un mejor equilibrio entre:
+
+- robustez
+- frecuencia efectiva
+- overhead BLE
+- numero de notificaciones
+- latencia todavia razonable para el MVP
+
+En consecuencia:
+
+- `26 muestras` queda como configuracion validada y de referencia historica
+- `52 muestras` pasa a ser la configuracion vigente recomendada
+- `104 muestras` queda solo como posible exploracion posterior, no como decision activa

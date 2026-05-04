@@ -29,8 +29,6 @@ import com.tfg.wearableapp.feature.dashboard.DashboardScreen
 import com.tfg.wearableapp.feature.connection.ConnectionScreen
 import com.tfg.wearableapp.feature.connection.ConnectionUiState
 import com.tfg.wearableapp.feature.profile.PlayerProfileDialog
-import com.tfg.wearableapp.feature.session.SessionDemoScreen
-import com.tfg.wearableapp.feature.session.SessionDemoUiState
 import com.tfg.wearableapp.feature.session.SessionScreen
 import com.tfg.wearableapp.feature.session.SessionUiState
 
@@ -40,7 +38,6 @@ private enum class AppSection(
     Connection("Conexion"),
     Session("Sesion"),
     Dashboard("Dashboard"),
-    Debug("Demo"),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,13 +64,8 @@ fun WearableAppRoot(
     onUpdateNotes: (String) -> Unit,
     onOpenLiveDashboard: () -> Unit,
     onOpenSelectedDashboard: () -> Unit,
-    demoUiState: SessionDemoUiState,
-    onStartDemo: () -> Unit,
-    onStopDemo: () -> Unit,
-    onPrepareRealBleDemo: () -> Unit,
 ) {
     var currentSection by rememberSaveable { mutableStateOf(AppSection.Connection) }
-    var useSimulatedDemo by rememberSaveable { mutableStateOf(true) }
     var showProfileDialog by rememberSaveable { mutableStateOf(false) }
 
     MaterialTheme {
@@ -152,7 +144,6 @@ fun WearableAppRoot(
                         onOpenSelectedDashboard()
                         currentSection = AppSection.Dashboard
                     },
-                    onOpenInternalDemo = { currentSection = AppSection.Debug },
                 )
 
                 AppSection.Dashboard -> DashboardScreen(
@@ -162,21 +153,6 @@ fun WearableAppRoot(
                     selectedSessionDetail = sessionUiState.selectedSessionDetail,
                     sessionSetup = sessionUiState.playerProfile,
                     onGoToSession = { currentSection = AppSection.Session },
-                )
-
-                AppSection.Debug -> SessionDemoScreen(
-                    paddingValues = innerPadding,
-                    uiState = demoUiState,
-                    useSimulatedBle = useSimulatedDemo,
-                    onToggleSimulation = { useSimulatedDemo = it },
-                    onStartDemo = {
-                        if (useSimulatedDemo) {
-                            onStartDemo()
-                        } else {
-                            onPrepareRealBleDemo()
-                        }
-                    },
-                    onStopDemo = onStopDemo,
                 )
             }
         }

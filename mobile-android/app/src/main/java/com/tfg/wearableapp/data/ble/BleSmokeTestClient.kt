@@ -254,7 +254,9 @@ class BleSmokeTestClient(
                     }
                     notifyStatus("Conectado. Solicitando MTU...")
 
-                    val mtuRequested = gatt.requestMtu(185)
+                    gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+
+                    val mtuRequested = gatt.requestMtu(247)
                     if (!mtuRequested) {
                         notifyStatus("MTU no solicitado; descubriendo servicios...")
                         gatt.discoverServices()

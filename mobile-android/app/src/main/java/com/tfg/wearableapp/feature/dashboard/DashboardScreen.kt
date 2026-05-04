@@ -123,12 +123,16 @@ private fun DashboardContent(
     val session = detail.session!!
     val summary = detail.processedSummary!!
     val dashboardMetrics = listOf(
-        DashboardMetric("Muestras", summary.sampleCount.toString(), "senal total"),
-        DashboardMetric("Bloques", detail.storedBlockCount.toString(), "en Room"),
-        DashboardMetric("Packets", summary.packetCount.toString(), "distintos"),
-        DashboardMetric("Impactos", summary.candidateImpactCount.toString(), "candidatos"),
-        DashboardMetric("Pico Accel", summary.peakAccelMagnitudeRaw.toString(), "raw"),
-        DashboardMetric("Pico Giro", summary.peakGyroMagnitudeRaw.toString(), "raw"),
+        DashboardMetric("Player Load", summary.playerLoadScore.toString(), "carga total"),
+        DashboardMetric("Carga/min", summary.playerLoadPerMinute.toString(), "workload"),
+        DashboardMetric("Distancia est.", summary.estimatedDistanceMeters?.let { "${it} m" } ?: "-", "pasos"),
+        DashboardMetric("Impactos/min", formatOneDecimal(summary.impactsPerMinute), "ritmo"),
+        DashboardMetric("Perfil accel", summary.accelerationEventCount.toString(), "eventos"),
+        DashboardMetric("Exposicion", "${summary.explosiveExposurePercent}%", "alta intensidad"),
+        DashboardMetric("RII proxy", summary.rallyIntensityIndexProxy.toString(), "rally"),
+        DashboardMetric("Swing p95", summary.swingSpeedProxyP95Raw?.toString() ?: "-", "tecnica"),
+        DashboardMetric("Potencia p95", summary.powerIndexProxyP95?.toString() ?: "-", "golpe"),
+        DashboardMetric("Consistencia", summary.consistencyScorePercent?.let { "$it%" } ?: "-", "estabilidad"),
     )
 
     LazyColumn(
@@ -147,9 +151,9 @@ private fun DashboardContent(
                 )
                 Text(
                     text = if (detail.isLive) {
-                        "Lectura en sesion activa, actualizada cada 2 s de forma ligera."
+                        "Lectura en sesion activa, actualizada de forma ligera sobre el flujo IMU en memoria."
                     } else {
-                        "Lectura post-sesion con enfoque deportivo y tecnico."
+                        "Lectura post-sesion calculada a partir del CSV crudo y los metadatos guardados."
                     },
                     color = Color(0xFF9ED7D0),
                     style = MaterialTheme.typography.bodyLarge,
@@ -174,7 +178,7 @@ private fun DashboardContent(
                 rows = GridCells.Fixed(2),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(240.dp),
+                    .height(400.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -198,11 +202,35 @@ private fun DashboardContent(
                     DashboardLabelRow("Nivel", sessionSetup.level)
                 }
                 TechPanel(
-                    title = "Lectura rapida",
+                    title = "Carga y movilidad",
                 ) {
+                    DashboardLabelRow("Pasos", formatStepBand(summary.stepCountStart, summary.stepCountEnd))
+                    DashboardLabelRow("Distancia estimada", summary.estimatedDistanceMeters?.let { "$it m" } ?: "-")
+                    DashboardLabelRow("Player Load", summary.playerLoadScore.toString())
+                    DashboardLabelRow("Carga por minuto", summary.playerLoadPerMinute.toString())
+                    DashboardLabelRow("Perfil de aceleraciones", summary.accelerationEventCount.toString())
+                    DashboardLabelRow("Exposicion explosiva", "${summary.explosiveExposurePercent}%")
+                }
+                TechPanel(
+                    title = "Tecnica y golpeo",
+                ) {
+                    DashboardLabelRow("Impactos detectados", summary.candidateImpactCount.toString())
+                    DashboardLabelRow("Impactos/min", formatOneDecimal(summary.impactsPerMinute))
+                    DashboardLabelRow("RII proxy", summary.rallyIntensityIndexProxy.toString())
+                    DashboardLabelRow("Swing p95", summary.swingSpeedProxyP95Raw?.toString() ?: "-")
+                    DashboardLabelRow("Potencia p95", summary.powerIndexProxyP95?.toString() ?: "-")
+                    DashboardLabelRow("Consistencia", summary.consistencyScorePercent?.let { "$it%" } ?: "-")
+                }
+                TechPanel(
+                    title = "Lectura tecnica base",
+                ) {
+                    DashboardLabelRow("Muestras", summary.sampleCount.toString())
+                    DashboardLabelRow("Bloques", detail.storedBlockCount.toString())
+                    DashboardLabelRow("Packets", summary.packetCount.toString())
                     DashboardLabelRow("Media accel", summary.meanAccelMagnitudeRaw.toString())
                     DashboardLabelRow("Media giro", summary.meanGyroMagnitudeRaw.toString())
-                    DashboardLabelRow("Packet final", session.lastPacketId?.toString() ?: "-")
+                    DashboardLabelRow("Pico accel", summary.peakAccelMagnitudeRaw.toString())
+                    DashboardLabelRow("Pico giro", summary.peakGyroMagnitudeRaw.toString())
                     DashboardLabelRow("Archivo", session.rawFilePath?.substringAfterLast('\\')?.substringAfterLast('/') ?: "-")
                 }
             }
@@ -388,10 +416,13 @@ private fun buildInterpretation(summary: PostSessionSummary): String {
         summary.peakAccelMagnitudeRaw >= 1450 -> "media"
         else -> "baja"
     }
+    val distanceText = summary.estimatedDistanceMeters?.let { "$it m" } ?: "-"
+    val consistencyText = summary.consistencyScorePercent?.let { "$it%" } ?: "-"
 
-    return "Sesion con intensidad $intensity segun el pico de aceleracion raw. " +
-        "El objetivo de este bloque no es cerrar aun la analitica final, sino traducir la sesion " +
-        "guardada en un dashboard legible y util para la siguiente iteracion."
+    return "Sesion con intensidad $intensity, Player Load ${summary.playerLoadScore} y " +
+        "${formatOneDecimal(summary.impactsPerMinute)} impactos por minuto. La distancia estimada " +
+        "por pasos es $distanceText y la consistencia tecnica actual se resume en $consistencyText. " +
+        "Esta lectura sigue la idea de carga, movilidad, tecnica y eventos del documento de KPIs."
 }
 
 @Composable
@@ -439,4 +470,16 @@ private fun formatDuration(durationMs: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "${minutes}m ${seconds}s"
+}
+
+private fun formatOneDecimal(value: Double): String {
+    return String.format(Locale.getDefault(), "%.1f", value)
+}
+
+private fun formatStepBand(
+    start: Long?,
+    end: Long?,
+): String {
+    if (start == null || end == null) return "-"
+    return "$start -> $end"
 }

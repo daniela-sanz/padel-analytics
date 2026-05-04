@@ -45,7 +45,6 @@ fun SessionScreen(
     onUpdateSessionNameDraft: (String) -> Unit,
     onOpenLiveDashboard: () -> Unit,
     onOpenSelectedDashboard: () -> Unit,
-    onOpenInternalDemo: () -> Unit,
 ) {
     TechScreenBackground(
         modifier = Modifier
@@ -69,7 +68,7 @@ fun SessionScreen(
 
             item {
                 Text(
-                    text = "Esta pantalla representa ya el flujo principal real. Primero conecta la XIAO en Conexion y despues inicia o detiene la sesion desde aqui. La simulacion queda relegada a Demo.",
+                    text = "Esta pantalla representa ya el flujo principal real. Primero conecta la XIAO en Conexion y despues inicia o detiene la sesion desde aqui. Desde esta misma base puedes abrir el dashboard live o el post-sesion.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TechStyle.body,
                 )
@@ -77,7 +76,7 @@ fun SessionScreen(
 
             item {
                 Text(
-                    text = "Persistencia local actual: Room",
+                    text = "Persistencia local actual: Room + CSV",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     color = TechStyle.accentSecondary,
@@ -159,11 +158,6 @@ fun SessionScreen(
                     item {
                         OutlinedButton(onClick = onOpenLiveDashboard) {
                             Text("Dashboard live")
-                        }
-                    }
-                    item {
-                        OutlinedButton(onClick = onOpenInternalDemo) {
-                            Text("Abrir demo tecnica")
                         }
                     }
                 }
@@ -392,6 +386,17 @@ private fun ProcessedSummarySection(
         SessionMetricRow("Media accel (raw)", summary.meanAccelMagnitudeRaw.toString())
         SessionMetricRow("Media giro (raw)", summary.meanGyroMagnitudeRaw.toString())
         SessionMetricRow("Golpes candidatos", summary.candidateImpactCount.toString())
+        SessionMetricRow("Perfil de aceleraciones", summary.accelerationEventCount.toString())
+        SessionMetricRow("Impactos/min", formatOneDecimal(summary.impactsPerMinute))
+        SessionMetricRow("Player Load", summary.playerLoadScore.toString())
+        SessionMetricRow("Player Load/min", summary.playerLoadPerMinute.toString())
+        SessionMetricRow("RII proxy", summary.rallyIntensityIndexProxy.toString())
+        SessionMetricRow("Exposicion explosiva", "${summary.explosiveExposurePercent}%")
+        SessionMetricRow("Pasos", formatStepBand(summary.stepCountStart, summary.stepCountEnd))
+        SessionMetricRow("Distancia estimada", summary.estimatedDistanceMeters?.let { "$it m" } ?: "-")
+        SessionMetricRow("Swing p95", summary.swingSpeedProxyP95Raw?.toString() ?: "-")
+        SessionMetricRow("Potencia p95", summary.powerIndexProxyP95?.toString() ?: "-")
+        SessionMetricRow("Consistencia", summary.consistencyScorePercent?.let { "$it%" } ?: "-")
         SessionMetricRow(
             "Bateria inicio-fin",
             "${summary.batteryAtStartPercent ?: "-"}% -> ${summary.batteryAtEndPercent ?: "-"}%",
@@ -495,4 +500,16 @@ private fun formatDuration(durationMs: Long): String {
 
 private fun extractFileName(path: String): String {
     return path.substringAfterLast('/').substringAfterLast('\\')
+}
+
+private fun formatOneDecimal(value: Double): String {
+    return String.format(Locale.getDefault(), "%.1f", value)
+}
+
+private fun formatStepBand(
+    start: Long?,
+    end: Long?,
+): String {
+    if (start == null || end == null) return "-"
+    return "$start -> $end"
 }

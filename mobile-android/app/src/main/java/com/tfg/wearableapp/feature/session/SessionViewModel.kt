@@ -311,7 +311,7 @@ class SessionViewModel(
             is BleTransportMessage.FirstChunkMessage,
             is BleTransportMessage.ContinuationChunkMessage,
             is BleTransportMessage.TelemetryMessage,
-            -> "Chunk v2 (MTU 23)"
+            -> "Chunk v2"
             null -> "Desconocido"
         }
 

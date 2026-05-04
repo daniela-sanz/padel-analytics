@@ -10,7 +10,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tfg.wearableapp.app.WearableAppRoot
 import com.tfg.wearableapp.data.ble.BleSmokeTestClient
 import com.tfg.wearableapp.feature.connection.ConnectionViewModel
-import com.tfg.wearableapp.feature.session.SessionDemoViewModel
 import com.tfg.wearableapp.feature.session.SessionViewModel
 
 class MainActivity : ComponentActivity() {
@@ -30,9 +29,6 @@ class MainActivity : ComponentActivity() {
                 factory = SessionViewModel.provideFactory(applicationContext, sharedBleClient)
             )
             val sessionUiState by sessionViewModel.uiState.collectAsStateWithLifecycle()
-
-            val demoViewModel: SessionDemoViewModel = viewModel()
-            val demoUiState by demoViewModel.uiState.collectAsStateWithLifecycle()
 
             WearableAppRoot(
                 connectionUiState = connectionUiState,
@@ -56,10 +52,6 @@ class MainActivity : ComponentActivity() {
                 onUpdateNotes = sessionViewModel::updateNotes,
                 onOpenLiveDashboard = sessionViewModel::openLiveDashboard,
                 onOpenSelectedDashboard = sessionViewModel::openSelectedDashboard,
-                demoUiState = demoUiState,
-                onStartDemo = demoViewModel::startSimulation,
-                onStopDemo = demoViewModel::stopSimulation,
-                onPrepareRealBleDemo = demoViewModel::prepareRealBleMode,
             )
         }
     }

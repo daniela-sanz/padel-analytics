@@ -39,7 +39,7 @@ class ChunkToBlockPipeline(
                 if (block != null) {
                     BlePipelineEvent.BlockCompleted(
                         block = block,
-                        transportKind = "chunk-v2-mtu23",
+                        transportKind = "chunk-v2",
                     )
                 } else {
                     BlePipelineEvent.ChunkObserved(message)

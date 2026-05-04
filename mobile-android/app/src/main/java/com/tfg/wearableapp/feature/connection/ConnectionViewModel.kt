@@ -298,7 +298,7 @@ class ConnectionViewModel(
                 is BleTransportMessage.FirstChunkMessage -> current.copy(
                     notificationsReceived = current.notificationsReceived + 1,
                     chunkNotificationsReceived = current.chunkNotificationsReceived + 1,
-                    transportMode = "Chunk v2 (MTU 23)",
+                    transportMode = "Chunk v2",
                     lastChunkPacketId = message.packetId,
                     lastChunkIndex = 0,
                     lastChunkCount = null,
@@ -307,7 +307,7 @@ class ConnectionViewModel(
                 is BleTransportMessage.ContinuationChunkMessage -> current.copy(
                     notificationsReceived = current.notificationsReceived + 1,
                     chunkNotificationsReceived = current.chunkNotificationsReceived + 1,
-                    transportMode = "Chunk v2 (MTU 23)",
+                    transportMode = "Chunk v2",
                     lastChunkPacketId = message.packetId,
                     lastChunkIndex = message.chunkSequence,
                     lastChunkCount = null,
@@ -315,7 +315,7 @@ class ConnectionViewModel(
                 )
                 is BleTransportMessage.TelemetryMessage -> current.copy(
                     notificationsReceived = current.notificationsReceived + 1,
-                    transportMode = "Chunk v2 (MTU 23)",
+                    transportMode = "Chunk v2",
                     lastPayloadHex = payload.toHexString(),
                 )
             }

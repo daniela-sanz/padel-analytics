@@ -1,5 +1,25 @@
 package com.tfg.wearableapp.data.processing
 
+data class AccelerationBucketSummary(
+    val startSecond: Int,
+    val endSecond: Int,
+    val sampleCount: Int,
+    val meanAccelMagnitudeRaw: Int,
+    val maxAccelMagnitudeRaw: Int,
+    val playerLoadScore: Int,
+    val impactCount: Int,
+    val directionChangeCount: Int,
+    val estimatedDistanceMeters: Int,
+    val explosiveDistanceMeters: Int,
+    val rallyIntensityIndexProxy: Int,
+    val powerIndexProxy: Int?,
+    val consistencyScorePercent: Int?,
+    val lowIntensitySampleCount: Int,
+    val mediumIntensitySampleCount: Int,
+    val highIntensitySampleCount: Int,
+    val explosiveIntensitySampleCount: Int,
+)
+
 data class PostSessionSummary(
     val sampleCount: Int,
     val packetCount: Int,
@@ -21,6 +41,8 @@ data class PostSessionSummary(
     val stepCountStart: Long?,
     val stepCountEnd: Long?,
     val estimatedDistanceMeters: Int?,
+    val explosiveDistanceMeters: Int?,
     val batteryAtStartPercent: Int?,
     val batteryAtEndPercent: Int?,
+    val accelerationBuckets: List<AccelerationBucketSummary>,
 )

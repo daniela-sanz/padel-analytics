@@ -5,14 +5,16 @@ import com.tfg.wearableapp.core.ble.model.ImuLogicalBlock
 import com.tfg.wearableapp.core.ble.model.TelemetrySnapshot
 
 class LiveSessionAccumulator(
-    private val impactAccelThresholdRaw: Double = 1700.0,
-    private val impactGyroThresholdRaw: Double = 1500.0,
+    private val impactDeltaThresholdRaw: Double = 3000.0,
+    private val impactGyroValidationThresholdRaw: Double = 5500.0,
     private val impactRefractoryMs: Long = 120L,
+    private val playerSex: String = "No definido",
 ) {
     private val summaryBuilder = ImuSessionSummaryBuilder(
-        impactAccelThresholdRaw = impactAccelThresholdRaw,
-        impactGyroThresholdRaw = impactGyroThresholdRaw,
+        impactDeltaThresholdRaw = impactDeltaThresholdRaw,
+        impactGyroValidationThresholdRaw = impactGyroValidationThresholdRaw,
         impactRefractoryMs = impactRefractoryMs,
+        playerSex = playerSex,
     )
 
     fun addBlock(

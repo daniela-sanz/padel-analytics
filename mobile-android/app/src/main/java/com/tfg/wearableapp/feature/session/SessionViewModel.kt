@@ -264,7 +264,9 @@ class SessionViewModel(
         simulatedSessionJob = null
         stats = ChunkTransportStats()
         samplesReceived = 0
-        liveSessionAccumulator = LiveSessionAccumulator()
+        liveSessionAccumulator = LiveSessionAccumulator(
+            playerSex = _uiState.value.playerProfile.sex,
+        )
         lastLiveDashboardPublishEpochMs = 0L
         latestTelemetry = TelemetrySnapshot()
         firstSignalTimestampMs = null
@@ -434,7 +436,12 @@ class SessionViewModel(
             val blockCountDeferred = async { repository.countBlocksForSession(session.id) }
             val blockSummariesDeferred = async { repository.loadBlockSummariesForSession(session.id) }
             val rawPreviewDeferred = async { rawFileReader.readPreview(session.rawFilePath) }
-            val processedSummaryDeferred = async { postSessionProcessor.process(session.rawFilePath) }
+            val processedSummaryDeferred = async {
+                postSessionProcessor.process(
+                    rawFilePath = session.rawFilePath,
+                    playerSex = _uiState.value.playerProfile.sex,
+                )
+            }
 
             _uiState.update {
                 it.copy(

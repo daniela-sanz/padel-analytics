@@ -385,7 +385,7 @@ private fun ProcessedSummarySection(
         SessionMetricRow("Pico giro (raw)", summary.peakGyroMagnitudeRaw.toString())
         SessionMetricRow("Media accel (raw)", summary.meanAccelMagnitudeRaw.toString())
         SessionMetricRow("Media giro (raw)", summary.meanGyroMagnitudeRaw.toString())
-        SessionMetricRow("Golpes candidatos", summary.candidateImpactCount.toString())
+        SessionMetricRow("Impactos detectados", summary.candidateImpactCount.toString())
         SessionMetricRow("Perfil de aceleraciones", summary.accelerationEventCount.toString())
         SessionMetricRow("Impactos/min", formatOneDecimal(summary.impactsPerMinute))
         SessionMetricRow("Player Load", summary.playerLoadScore.toString())

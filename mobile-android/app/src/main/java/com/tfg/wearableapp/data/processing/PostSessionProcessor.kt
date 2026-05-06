@@ -8,8 +8,9 @@ import kotlinx.coroutines.withContext
 class PostSessionProcessor {
     suspend fun process(
         rawFilePath: String?,
-        impactAccelThresholdRaw: Double = 1700.0,
-        impactGyroThresholdRaw: Double = 1500.0,
+        playerSex: String = "No definido",
+        impactDeltaThresholdRaw: Double = 3000.0,
+        impactGyroValidationThresholdRaw: Double = 5500.0,
         impactRefractoryMs: Long = 120L,
     ): PostSessionSummary? = withContext(Dispatchers.IO) {
         if (rawFilePath.isNullOrBlank()) {
@@ -22,9 +23,10 @@ class PostSessionProcessor {
         }
 
         val summaryBuilder = ImuSessionSummaryBuilder(
-            impactAccelThresholdRaw = impactAccelThresholdRaw,
-            impactGyroThresholdRaw = impactGyroThresholdRaw,
+            impactDeltaThresholdRaw = impactDeltaThresholdRaw,
+            impactGyroValidationThresholdRaw = impactGyroValidationThresholdRaw,
             impactRefractoryMs = impactRefractoryMs,
+            playerSex = playerSex,
         )
 
         file.useLines { lines ->
